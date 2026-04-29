@@ -1,0 +1,81 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Phase 3: Primitive Definitions
+    function isSignedIn() { return request.auth != null; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+
+    // Validation Blueprint for BaziProfile
+    function isValidBaziProfile(data) {
+      return data.keys().hasAll(['userId', 'name', 'gender', 'birthDate', 'pillars', 'dayMaster', 'strength', 'updatedAt']) &&
+             data.keys().size() == 8 &&
+             data.userId == request.auth.uid &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.gender in ['Nam', 'Nữ'] &&
+             data.birthDate is string && data.birthDate.size() <= 50 &&
+             data.dayMaster is string && data.dayMaster.size() <= 20 &&
+             data.strength is string && data.strength.size() <= 50 &&
+             data.updatedAt == request.time &&
+             data.pillars is map &&
+             data.pillars.keys().hasAll(['year', 'month', 'day', 'hour']) &&
+             data.pillars.keys().size() == 4;
+    }
+
+    // Validation Blueprint for User Metadata
+    function isValidUser(data) {
+       // Every user doc must have at least credits
+       return data.keys().hasAll(['credits']) &&
+              data.credits is int && data.credits >= 0;
+    }
+
+    // Rules for Profiles
+    match /profiles/{profileId} {
+      allow get: if isOwner(profileId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      
+      allow create: if isOwner(profileId) && 
+                      isValidId(profileId) && 
+                      isValidBaziProfile(incoming()) &&
+                      incoming().userId == profileId;
+                      
+      allow update: if isOwner(profileId) && 
+                      isValidBaziProfile(incoming()) &&
+                      incoming().userId == existing().userId &&
+                      // Action-Based Update Pattern (Partial updates via field-blocking)
+                      (
+                        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'gender', 'birthDate', 'pillars', 'dayMaster', 'strength', 'updatedAt'])
+                      );
+                      
+      allow delete: if isOwner(profileId);
+    }
+
+    // Rules for User Metadata
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      
+      allow create: if isOwner(userId) && 
+                      isValidId(userId) && 
+                      isValidUser(incoming());
+                      
+      allow update: if isOwner(userId) && 
+                      (
+                        // Action: Buy credits
+                        (incoming().diff(existing()).affectedKeys().hasOnly(['credits']) && incoming().credits is int) ||
+                        // Action: Use credit / Use free turn
+                        (incoming().diff(existing()).affectedKeys().hasAny(['credits', 'lastFreeUsed']) && 
+                         incoming().diff(existing()).affectedKeys().hasOnly(['credits', 'lastFreeUsed']) &&
+                         (incoming().get('lastFreeUsed', existing().get('lastFreeUsed', null)) == request.time || 
+                          incoming().get('lastFreeUsed', null) == existing().get('lastFreeUsed', null))
+                        )
+                      );
+    }
+  }
+}

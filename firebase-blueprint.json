@@ -1,0 +1,100 @@
+{
+  "entities": {
+    "BaziProfile": {
+      "title": "Bazi Profile",
+      "description": "User's Bazi profile containing personal info and calculated pillars",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "gender": { "type": "string", "enum": ["Nam", "Nữ"] },
+        "birthDate": { "type": "string", "format": "date-time" },
+        "dayMaster": { "type": "string" },
+        "strength": { "type": "string" },
+        "pillars": {
+          "type": "object",
+          "properties": {
+            "year": { "$ref": "#/entities/Pillar" },
+            "month": { "$ref": "#/entities/Pillar" },
+            "day": { "$ref": "#/entities/Pillar" },
+            "hour": { "$ref": "#/entities/Pillar" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "birthDate", "pillars"]
+    },
+    "Pillar": {
+      "title": "Bazi Pillar",
+      "type": "object",
+      "properties": {
+        "stem": { "type": "string" },
+        "branch": { "type": "string" },
+        "element": { "type": "string" }
+      }
+    },
+    "User": {
+      "title": "Application User",
+      "description": "User metadata including credits and usage limits",
+      "type": "object",
+      "properties": {
+        "credits": { "type": "integer" },
+        "lastFreeUsed": { "type": "string", "format": "date-time" },
+        "deviceId": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "GlobalStats": {
+      "title": "Global Statistics",
+      "description": "System-wide tracking",
+      "type": "object",
+      "properties": {
+        "dailyTokens": { "type": "integer" },
+        "totalVIPs": { "type": "integer" },
+        "uniqueVIPs": { "type": "integer" },
+        "totalRevenue": { "type": "integer" },
+        "lastResetDate": { "type": "string", "format": "date" }
+      }
+    },
+    "ChatMessage": {
+      "title": "Chat Message",
+      "description": "Individual message in a chat history",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "model"] },
+        "parts": { 
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "text": { "type": "string" }
+            }
+          }
+        },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "contextType": { "type": "string", "enum": ["general", "bazi"] }
+      },
+      "required": ["userId", "role", "parts", "timestamp"]
+    }
+  },
+  "firestore": {
+    "profiles": {
+      "schema": "BaziProfile",
+      "description": "Store bazi profiles for each user"
+    },
+    "users": {
+      "schema": "User",
+      "description": "Store user metadata and credit balances"
+    },
+    "chats": {
+      "schema": "ChatMessage",
+      "description": "Historical chat messages for users"
+    },
+    "system/stats": {
+      "schema": "GlobalStats",
+      "description": "Global usage tracking"
+    }
+  }
+}
